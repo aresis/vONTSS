@@ -222,10 +222,11 @@ class VNTM(nn.Module):
 
         #self.dirichlet = torch.distributions.dirichlet.Dirichlet((torch.ones(self.topics.k)/self.topics.k).cuda())
     def forward(self, x, device, n_sample=1, epoch = 0):
+        eps = 1e-8
         h = self.hidden(x)
         h = self.drop(h)
         z_mean = self.fc_mean(h)
-        z_mean = z_mean / z_mean.norm(dim=-1, keepdim=True)
+        z_mean = z_mean / (z_mean.norm(dim=-1, keepdim=True) + eps)
         # the `+ 1` prevent collapsing behaviors
         z_var = F.softplus(self.fc_var(h)) + 1
         
@@ -387,19 +388,23 @@ class TopicModel:
         normal = NormalParameter(layer, self.numb_embeddings)
         h_to_z = nn.Softmax()
         embedding = nn.Embedding(bag_of_words.shape[1], 100)
-        # p1d = (0, 0, 0, 10000 - company1.embeddings.shape[0]) # pad last dim by 1 on each side
-        # out = F.pad(company1.embeddings, p1d, "constant", 0)  # effectively zero padding
 
+        # Load pre-trained GloVe vectors
         glove_vectors = gensim.downloader.load('glove-wiki-gigaword-100')
-        embed = np.asarray([glove_vectors[self.tp.index_to_word[i]] if  self.tp.index_to_word[i] in glove_vectors else np.asarray([1]*100) for i in self.tp.index_to_word ])
-        print(embed.shape)
+
+        # Initialize the embedding weight with GloVe vectors
+        embed = np.zeros((bag_of_words.shape[1], 100))  # Initialize an array of zeros with shape         (vocab_size, 100)
+        for i, word in enumerate(self.tp.index_to_word):
+            # If the word is in GloVe vectors, use it; otherwise, use a vector of ones (or zeros)
+            embed[i] = glove_vectors.get(word, np.ones(100))  # Default to a vector of ones if the word         isn't in GloVe
+
+        # Convert to tensor and assign to embedding weight
         embedding.weight = torch.nn.Parameter(torch.from_numpy(embed).float())
-        embedding.weight.requires_grad=True
+        embedding.weight.requires_grad = True
 
+        # Initialize the EmbTopic module
+        topics = EmbTopic(embedding=embedding, k=self.numb_embeddings, normalize=False)
 
-       
-        topics = EmbTopic(embedding = embedding,
-                            k = self.numb_embeddings, normalize = False)
 
 
         
