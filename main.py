@@ -1,5 +1,6 @@
 import argparse
 import sys
+import pandas as pd
 sys.path.insert(0, 'src/topicmodeling')
 from model import TopicModel
 from datasets import load_dataset
